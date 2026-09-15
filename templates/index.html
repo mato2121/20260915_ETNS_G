@@ -8,6 +8,13 @@
 </head>
 <body>
   <div class="container">
+    <div class="topbar">
+      <span class="user-badge">👤 {{ current_user.username }}</span>
+      <form action="{{ url_for('logout') }}" method="post">
+        <button type="submit" class="logout-btn">로그아웃</button>
+      </form>
+    </div>
+
     <h1>📝 ETNS 할일관리</h1>
 
     <form class="add-form" action="{{ url_for('add') }}" method="post">

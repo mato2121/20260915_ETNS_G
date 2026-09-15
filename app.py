@@ -1,8 +1,18 @@
 import os
 from datetime import datetime
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import inspect, text
+from werkzeug.security import check_password_hash, generate_password_hash
 
 try:
     from supabase import create_client
@@ -35,7 +45,16 @@ else:
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# 로그인 세션 쿠키를 서명하는 데 쓰이는 키. Vercel처럼 인스턴스가 여러 개 뜨는 환경에서는
+# 반드시 환경변수 SECRET_KEY로 고정값을 줘야 로그인이 유지됩니다(안 주면 매번 랜덤 생성).
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(32))
+
 db = SQLAlchemy(app)
+
+login_manager = LoginManager()
+login_manager.login_view = "login"
+login_manager.login_message = "로그인이 필요합니다."
+login_manager.init_app(app)
 
 # ---------------------------------------------------------------------------
 # Supabase Data API (REST) 클라이언트
@@ -54,31 +73,119 @@ if create_client and SUPABASE_URL and SUPABASE_ANON_KEY:
         supabase_client = None
 
 
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, raw_password):
+        self.password_hash = generate_password_hash(raw_password)
+
+    def check_password(self, raw_password):
+        return check_password_hash(self.password_hash, raw_password)
+
+
 class Todo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     done = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
 
 
 with app.app_context():
     db.create_all()
+    # 기존에 user_id 컬럼 없이 만들어졌던 todo 테이블에 로그인 기능 추가로 컬럼을 보강합니다.
+    inspector = inspect(db.engine)
+    if "todo" in inspector.get_table_names():
+        existing_columns = {c["name"] for c in inspector.get_columns("todo")}
+        if "user_id" not in existing_columns:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE todo ADD COLUMN user_id INTEGER"))
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        password_confirm = request.form.get("password_confirm", "")
+
+        error = None
+        if len(username) < 3:
+            error = "아이디는 3자 이상이어야 합니다."
+        elif len(password) < 4:
+            error = "비밀번호는 4자 이상이어야 합니다."
+        elif password != password_confirm:
+            error = "비밀번호가 서로 일치하지 않습니다."
+        elif User.query.filter_by(username=username).first():
+            error = "이미 사용 중인 아이디입니다."
+
+        if error:
+            flash(error)
+            return render_template("register.html", username=username)
+
+        user = User(username=username)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        login_user(user)
+        return redirect(url_for("index"))
+
+    return render_template("register.html", username="")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for("index"))
+
+        flash("아이디 또는 비밀번호가 올바르지 않습니다.")
+        return render_template("login.html", username=username)
+
+    return render_template("login.html", username="")
+
+
+@app.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
 
 
 @app.route("/")
+@login_required
 def index():
     filter_value = request.args.get("filter", "all")
 
-    query = Todo.query.order_by(Todo.created_at.desc())
+    query = Todo.query.filter_by(user_id=current_user.id).order_by(Todo.created_at.desc())
     if filter_value == "active":
         query = query.filter_by(done=False)
     elif filter_value == "done":
         query = query.filter_by(done=True)
 
     todos = query.all()
-    total = Todo.query.count()
-    active_count = Todo.query.filter_by(done=False).count()
-    done_count = Todo.query.filter_by(done=True).count()
+    total = Todo.query.filter_by(user_id=current_user.id).count()
+    active_count = Todo.query.filter_by(user_id=current_user.id, done=False).count()
+    done_count = Todo.query.filter_by(user_id=current_user.id, done=True).count()
 
     return render_template(
         "index.html",
@@ -91,25 +198,28 @@ def index():
 
 
 @app.route("/add", methods=["POST"])
+@login_required
 def add():
     title = request.form.get("title", "").strip()
     if title:
-        db.session.add(Todo(title=title))
+        db.session.add(Todo(title=title, user_id=current_user.id))
         db.session.commit()
     return redirect(url_for("index", filter=request.form.get("filter", "all")))
 
 
 @app.route("/toggle/<int:todo_id>", methods=["POST"])
+@login_required
 def toggle(todo_id):
-    todo = Todo.query.get_or_404(todo_id)
+    todo = Todo.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
     todo.done = not todo.done
     db.session.commit()
     return redirect(url_for("index", filter=request.args.get("filter", "all")))
 
 
 @app.route("/edit/<int:todo_id>", methods=["POST"])
+@login_required
 def edit(todo_id):
-    todo = Todo.query.get_or_404(todo_id)
+    todo = Todo.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
     title = request.form.get("title", "").strip()
     if title:
         todo.title = title
@@ -118,16 +228,18 @@ def edit(todo_id):
 
 
 @app.route("/delete/<int:todo_id>", methods=["POST"])
+@login_required
 def delete(todo_id):
-    todo = Todo.query.get_or_404(todo_id)
+    todo = Todo.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
     db.session.delete(todo)
     db.session.commit()
     return redirect(url_for("index", filter=request.args.get("filter", "all")))
 
 
 @app.route("/clear_done", methods=["POST"])
+@login_required
 def clear_done():
-    Todo.query.filter_by(done=True).delete()
+    Todo.query.filter_by(user_id=current_user.id, done=True).delete()
     db.session.commit()
     return redirect(url_for("index", filter=request.args.get("filter", "all")))
 
