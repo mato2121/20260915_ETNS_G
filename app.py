@@ -1,10 +1,21 @@
+import os
 from datetime import datetime
 
 from flask import Flask, redirect, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///todo.db"
+
+# Vercel의 서버리스 함수는 배포된 코드 디렉터리가 읽기 전용이라 /tmp 에만 쓸 수 있고,
+# 그마저도 인스턴스가 재시작되면 초기화됩니다. 로컬 실행 시에는 프로젝트 폴더에 그대로 저장합니다.
+if os.environ.get("VERCEL"):
+    db_path = "/tmp/todo.db"
+else:
+    db_path = os.path.join(BASE_DIR, "todo.db")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
