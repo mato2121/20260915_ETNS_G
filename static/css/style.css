@@ -1,0 +1,197 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+  background: #f4f6f8;
+  color: #222;
+  display: flex;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.container {
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  margin: 0 0 20px;
+  font-size: 22px;
+  text-align: center;
+}
+
+.add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.add-form input[type="text"] {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.add-form button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #4a6cf7;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.add-form button:hover {
+  background: #3a58d6;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filters a {
+  flex: 1;
+  text-align: center;
+  padding: 6px 0;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 13px;
+  color: #555;
+  background: #f0f2f5;
+}
+
+.filters a.active {
+  background: #4a6cf7;
+  color: #fff;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+}
+
+.todo-list li.empty {
+  justify-content: center;
+  color: #999;
+  font-size: 13px;
+  padding: 24px 0;
+}
+
+.toggle-form {
+  margin: 0;
+}
+
+.check-btn {
+  border: none;
+  background: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.title {
+  flex: 1;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.todo-list li.done .title {
+  text-decoration: line-through;
+  color: #aaa;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.actions button {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.edit-btn {
+  background: #eef1ff;
+  color: #4a6cf7;
+}
+
+.delete-btn {
+  background: #ffefef;
+  color: #e64545;
+}
+
+.edit-form {
+  display: none;
+  width: 100%;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.edit-form.open {
+  display: flex;
+}
+
+.edit-form input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.edit-form button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #4a6cf7;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.clear-form {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.clear-form button {
+  border: none;
+  background: none;
+  color: #999;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
